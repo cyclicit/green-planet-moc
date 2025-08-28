@@ -124,7 +124,7 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
   }
 });
 
-// Get all products
+// Get all products - FIXED VERSION
 router.get('/', async (req, res) => {
   try {
     const { search, category } = req.query;
@@ -142,14 +142,20 @@ router.get('/', async (req, res) => {
       .populate('user', 'name avatar')
       .sort({ createdAt: -1 });
     
-    // Fix image URLs to be absolute URLs with correct path separators
+    // Fix image URLs for both development and production
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://green-planet-moc.onrender.com'
+      : 'http://localhost:5000';
+    
     const productsWithFixedUrls = products.map(product => ({
       ...product.toObject(),
       images: product.images.map(image => {
         if (!image) return null;
         // Replace backslashes with forward slashes for URLs
         const normalizedPath = image.replace(/\\/g, '/');
-        return `https://green-planet-moc.onrender.com/${normalizedPath}`;
+        // Remove any duplicate slashes
+        const cleanPath = normalizedPath.replace(/(?<!:)\/\//g, '/');
+        return `${baseUrl}/${cleanPath}`;
       }).filter(Boolean)
     }));
     
@@ -163,7 +169,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single product
+// Get single product - FIXED VERSION
 router.get('/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
@@ -174,14 +180,18 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ msg: 'Product not found' });
     }
     
-    // Fix image URLs
+    // Fix image URLs for both development and production
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://green-planet-moc.onrender.com'
+      : 'http://localhost:5000';
+    
     const productWithFixedUrls = {
       ...product.toObject(),
       images: product.images.map(image => {
         if (!image) return null;
-        // Replace backslashes with forward slashes for URLs
         const normalizedPath = image.replace(/\\/g, '/');
-        return `https://green-planet-moc.onrender.com/${normalizedPath}`;
+        const cleanPath = normalizedPath.replace(/(?<!:)\/\//g, '/');
+        return `${baseUrl}/${cleanPath}`;
       }).filter(Boolean)
     };
     
@@ -195,22 +205,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-
-// Keep other routes but add better error handling
-router.get('/', async (req, res) => {
-  try {
-    const products = await Product.find({ status: 'active' })
-      .populate('user', 'name avatar')
-      .sort({ createdAt: -1 });
+// REMOVE THIS DUPLICATE ROUTE - it's causing issues
+// router.get('/', async (req, res) => {
+//   try {
+//     const products = await Product.find({ status: 'active' })
+//       .populate('user', 'name avatar')
+//       .sort({ createdAt: -1 });
     
-    res.json(products);
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ 
-      msg: 'Error fetching products',
-      error: error.message 
-    });
-  }
-});
+//     res.json(products);
+//   } catch (error) {
+//     console.error('Error fetching products:', error);
+//     res.status(500).json({ 
+//       msg: 'Error fetching products',
+//       error: error.message 
+//     });
+//   }
+// });
 
 module.exports = router;
