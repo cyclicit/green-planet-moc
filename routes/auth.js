@@ -1,63 +1,59 @@
 const express = require('express');
 const passport = require('passport');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User'); // Import User model
 const router = express.Router();
 
-// Google OAuth
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
+// Google Auth Routes
+router.get('/google', 
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    prompt: 'select_account' // Force account selection
+  })
+);
 
 router.get('/google/callback', 
   passport.authenticate('google', { 
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/login`,
-    session: false 
+    failureRedirect: '/login',
+    failureMessage: true 
   }),
   (req, res) => {
     try {
       // Successful authentication
-      const token = jwt.sign(
-        { id: req.user._id }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: '7d' }
+      console.log('Google auth successful for user:', req.user._id);
+      res.redirect(process.env.NODE_ENV === 'production' 
+        ? 'https://green-planet-moc.onrender.com/dashboard' 
+        : 'http://localhost:3000/dashboard'
       );
-      
-      // Redirect to frontend with token
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/auth/success?token=${token}`);
     } catch (error) {
-      console.error('Auth callback error:', error);
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=auth_failed`);
+      console.error('Error in Google callback:', error);
+      res.redirect('/login?error=auth_failed');
     }
   }
 );
 
-// Get current user
-router.get('/me', async (req, res) => {
-  try {
-    const token = req.header('x-auth-token');
-    if (!token) {
-      return res.status(401).json({ msg: 'No token, authorization denied' });
+// Logout route
+router.get('/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+      return res.status(500).json({ msg: 'Error logging out' });
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
-    }
-    
-    res.json(user);
-  } catch (err) {
-    console.error('Auth me error:', err);
-    res.status(401).json({ msg: 'Token is not valid' });
-  }
+    res.redirect('/');
+  });
 });
 
-// Logout (optional)
-router.post('/logout', (req, res) => {
-  // Since we're using JWT, logout is handled client-side by removing the token
-  res.json({ msg: 'Logged out successfully' });
+// Get current user
+router.get('/user', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({
+      isAuthenticated: true,
+      user: req.user
+    });
+  } else {
+    res.json({
+      isAuthenticated: false,
+      user: null
+    });
+  }
 });
 
 module.exports = router;

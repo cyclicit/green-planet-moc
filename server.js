@@ -2,12 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
+const session = require('express-session');
+const passport = require('passport');
 
 // Import routes
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
 const blogRoutes = require('./routes/blogs');
 const donationRoutes = require('./routes/donations');
+
+// Import passport configuration
+require('./config/passport');
 
 const app = express();
 
@@ -41,6 +46,29 @@ app.use(cors(corsOptions));
 // Handle preflight requests
 app.options('*', cors(corsOptions));
 
+// Session configuration - MUST come before passport middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-fallback-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // true in production, false in development
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-site in production
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    httpOnly: true
+  },
+  store: mongoose.connection.readyState === 1 
+    ? new (require('connect-mongo')(session))({ 
+        mongooseConnection: mongoose.connection,
+        collection: 'sessions'
+      })
+    : null
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Other middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -50,6 +78,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   console.log('Origin:', req.headers.origin);
+  console.log('Authenticated:', req.isAuthenticated());
   next();
 });
 
@@ -65,7 +94,9 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    session: req.session ? 'Active' : 'No session',
+    authenticated: req.isAuthenticated()
   });
 });
 
@@ -74,7 +105,9 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'Green Planet API is running!',
     environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    session: req.sessionID ? 'Session exists' : 'No session',
+    user: req.user || 'Not authenticated'
   });
 });
 
@@ -118,7 +151,10 @@ const startServer = async () => {
 
     // Connect to MongoDB
     console.log('Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
     console.log('✅ Connected to MongoDB successfully');
 
     // Start server
@@ -126,6 +162,8 @@ const startServer = async () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+      console.log(`🔐 Session secret: ${process.env.SESSION_SECRET ? 'Set' : 'Not set - using fallback'}`);
+      console.log(`📱 Google Client ID: ${process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not set'}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
