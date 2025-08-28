@@ -1,59 +1,74 @@
 const express = require('express');
 const passport = require('passport');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 
-// Google Auth Routes
-router.get('/google', 
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'],
-    prompt: 'select_account' // Force account selection
-  })
+// Generate JWT token function
+const generateToken = (user) => {
+  return jwt.sign(
+    { 
+      id: user._id, 
+      email: user.email, 
+      name: user.name 
+    },
+    process.env.JWT_SECRET || 'fallback_jwt_secret',
+    { expiresIn: '7d' }
+  );
+};
+
+// Initiate Google OAuth
+router.get('/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
-router.get('/google/callback', 
+// Google OAuth callback
+router.get('/google/callback',
   passport.authenticate('google', { 
-    failureRedirect: '/login',
-    failureMessage: true 
+    failureRedirect: process.env.FRONTEND_URL + '/login?error=auth_failed',
+    session: false 
   }),
   (req, res) => {
     try {
-      // Successful authentication
-      console.log('Google auth successful for user:', req.user._id);
-      res.redirect(process.env.NODE_ENV === 'production' 
-        ? 'https://green-planet-moc.onrender.com/dashboard' 
-        : 'http://localhost:3000/dashboard'
-      );
+      // Generate JWT token
+      const token = generateToken(req.user);
+      
+      // Redirect to frontend with token as query parameter
+      res.redirect(`${process.env.FRONTEND_URL}/auth-callback?token=${token}&success=true`);
     } catch (error) {
-      console.error('Error in Google callback:', error);
-      res.redirect('/login?error=auth_failed');
+      console.error('Token generation error:', error);
+      res.redirect(process.env.FRONTEND_URL + '/login?error=token_error');
     }
   }
 );
 
-// Logout route
-router.get('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      console.error('Logout error:', err);
-      return res.status(500).json({ msg: 'Error logging out' });
-    }
-    res.redirect('/');
-  });
-});
-
 // Get current user
-router.get('/user', (req, res) => {
-  if (req.isAuthenticated()) {
+router.get('/user', async (req, res) => {
+  try {
+    // Check for token in headers
+    const token = req.headers['x-auth-token'];
+    
+    if (!token) {
+      return res.json({ isAuthenticated: false });
+    }
+    
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_jwt_secret');
+    
+    // You would typically fetch user from database here
     res.json({
       isAuthenticated: true,
-      user: req.user
+      user: decoded
     });
-  } else {
-    res.json({
-      isAuthenticated: false,
-      user: null
-    });
+  } catch (error) {
+    console.error('Auth check error:', error);
+    res.json({ isAuthenticated: false });
   }
+});
+
+// Logout route
+router.get('/logout', (req, res) => {
+  // With JWT, logout is handled on the client side by removing the token
+  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 module.exports = router;

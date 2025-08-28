@@ -37,6 +37,11 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
+// Add this near the top with other environment checks
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  JWT_SECRET not set. Using fallback secret (not recommended for production).');
+}
+
 // Apply CORS middleware
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
