@@ -149,7 +149,7 @@ router.get('/', async (req, res) => {
         if (!image) return null;
         // Replace backslashes with forward slashes for URLs
         const normalizedPath = image.replace(/\\/g, '/');
-        return `http://localhost:5000/${normalizedPath}`;
+        return `https://green-planet-moc.onrender.com/${normalizedPath}`;
       }).filter(Boolean)
     }));
     
@@ -181,7 +181,7 @@ router.get('/:id', async (req, res) => {
         if (!image) return null;
         // Replace backslashes with forward slashes for URLs
         const normalizedPath = image.replace(/\\/g, '/');
-        return `http://localhost:5000/${normalizedPath}`;
+        return `https://green-planet-moc.onrender.com/${normalizedPath}`;
       }).filter(Boolean)
     };
     
