@@ -111,6 +111,18 @@ app.get('/', (req, res) => {
   });
 });
 
+
+// Serve static assets in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from React build directory
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+  });
+}
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
