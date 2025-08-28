@@ -111,6 +111,51 @@ app.get('/', (req, res) => {
   });
 });
 
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/donations', donationRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Serve static assets in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from React build directory
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+  });
+}
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  console.error('Server error:', error);
+  
+  if (error.message === 'Not allowed by CORS') {
+    return res.status(403).json({ 
+      error: 'CORS Error',
+      message: `Origin ${req.headers.origin} is not allowed`,
+      allowedOrigins: allowedOrigins
+    });
+  }
+  
+  res.status(500).json({ 
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : error.message
+  });
+});
+
+
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
