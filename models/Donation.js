@@ -7,6 +7,12 @@ const donationSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'Plant name cannot exceed 100 characters']
   },
+  ccc: {
+    type: String,
+    required: [true, 'Plant name is required'],
+    trim: true,
+    maxlength: [100, 'Plant name cannot exceed 100 characters']
+  },
   description: {
     type: String,
     required: [true, 'Donation description is required'],
