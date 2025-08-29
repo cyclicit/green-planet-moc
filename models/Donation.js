@@ -23,8 +23,8 @@ const donationSchema = new mongoose.Schema({
     required: [true, 'Location is required'],
     maxlength: [200, 'Location cannot exceed 200 characters']
   },
-  donorName: {
-    type: String,
+  donor: {  // Changed from donorName to donor to match the field name
+    type: String, // CHANGED FROM ObjectId TO String
     required: [true, 'Donor name is required'],
     maxlength: [100, 'Donor name cannot exceed 100 characters']
   },
