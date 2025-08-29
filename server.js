@@ -42,6 +42,8 @@ app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -136,6 +138,15 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Simple test endpoint
+app.get('/api/test-connection', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Backend is connected',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ----------------- Error Handling -----------------
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
@@ -205,3 +216,5 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Start the server
 startServer();
+
+

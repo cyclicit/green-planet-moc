@@ -3,7 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User'); // Your user model
+const crypto = require('crypto');
+const User = require('../models/User');
 
 const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
@@ -13,17 +14,29 @@ const client = new OAuth2Client(
     : 'http://localhost:10000/api/auth/google/callback'
 );
 
-// Generate JWT token
-const generateToken = (user) => {
-  return jwt.sign(
+// Generate JWT tokens
+const generateTokens = (user) => {
+  // Access token (short-lived)
+  const accessToken = jwt.sign(
     { 
       id: user._id, 
       email: user.email,
       name: user.name 
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '15m' } // 15 minutes
   );
+
+  // Refresh token (long-lived)
+  const refreshToken = jwt.sign(
+    { 
+      id: user._id 
+    },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, // Use separate secret if available
+    { expiresIn: '7d' } // 7 days
+  );
+
+  return { accessToken, refreshToken };
 };
 
 // Initiate Google OAuth
@@ -85,21 +98,53 @@ router.get('/google/callback', async (req, res) => {
       await user.save();
     }
 
-    // Generate JWT token
-    const token = generateToken(user);
+    // Generate both access and refresh tokens
+    const { accessToken, refreshToken } = generateTokens(user);
     
-    // Redirect to frontend with token
+    // Redirect to frontend with both tokens
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/success?token=${token}&userId=${user._id}`);
+    res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}&refreshToken=${refreshToken}&userId=${user._id}`);
     
   } catch (error) {
     console.error('Google callback error:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/error?message=Authentication failed`);
+    res.redirect(`${frontendUrl}/auth/callback?error=Authentication failed`);
   }
 });
 
-// Verify token endpoint (for frontend)
+// Refresh token endpoint
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token required' });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    
+    // Find user
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate new tokens
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(user);
+
+    res.json({
+      token: newAccessToken,
+      refreshToken: newRefreshToken
+    });
+
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+});
+
+// Verify token endpoint
 router.get('/verify', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -124,7 +169,6 @@ router.get('/verify', async (req, res) => {
 
 // Logout endpoint
 router.post('/logout', (req, res) => {
-  // With JWT, logout is handled client-side by removing the token
   res.json({ message: 'Logged out successfully' });
 });
 
