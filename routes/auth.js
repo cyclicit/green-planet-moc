@@ -9,6 +9,7 @@ const User = require('../models/User');
 const client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
+  process.env.FRONTEND_URL,
   process.env.NODE_ENV === 'production' 
     ? 'https://green-planet-moc.onrender.com/api/auth/google/callback'
     : 'http://localhost:10000/api/auth/google/callback'
