@@ -40,21 +40,25 @@ const generateTokens = (user) => {
   return { accessToken, refreshToken };
 };
 
-// Initiate Google OAuth
 router.get('/google', (req, res) => {
   try {
+    const redirectUri = process.env.NODE_ENV === 'production' 
+      ? 'https://green-planet-moc.onrender.com/api/auth/google/callback'
+      : 'http://localhost:10000/api/auth/google/callback';
+
     const authorizeUrl = client.generateAuthUrl({
       access_type: 'offline',
-      scope: ['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'],
-      prompt: 'consent'
+      scope: ['profile', 'email'], // Use simpler scope names
+      prompt: 'consent',
+      redirect_uri: redirectUri // Explicitly set redirect URI here
     });
+    
     res.redirect(authorizeUrl);
   } catch (error) {
     console.error('Google auth initiation error:', error);
     res.status(500).json({ error: 'Failed to initiate Google authentication' });
   }
 });
-
 // Handle Google callback
 router.get('/google/callback', async (req, res) => {
   try {
