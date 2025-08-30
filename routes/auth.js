@@ -72,7 +72,7 @@ router.get('/google/callback', async (req, res) => {
 
     console.log('Received authorization code:', code);
 
-    const redirectUri = process.env.NODE_ENV === 'production' 
+    const redirectUri = process.env.FRONTEND_URL === 'https://green-planet-moc.onrender.com/api/auth/google/callback'
       ? 'https://green-planet-moc.onrender.com/api/auth/google/callback'
       : 'http://localhost:10000/api/auth/google/callback';
 
