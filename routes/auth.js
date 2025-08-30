@@ -60,25 +60,41 @@ router.get('/google', (req, res) => {
   }
 });
 // Handle Google callback
+// Handle Google callback
 router.get('/google/callback', async (req, res) => {
   try {
     const { code } = req.query;
     
     if (!code) {
-      return res.status(400).json({ error: 'Authorization code missing' });
+      console.log('No authorization code received');
+      return res.redirect(`${frontendUrl}/auth/callback?error=No authorization code`);
     }
 
-    // Exchange code for tokens
-    const { tokens } = await client.getToken(code);
-    client.setCredentials(tokens);
+    console.log('Received authorization code:', code);
+
+    const redirectUri = process.env.NODE_ENV === 'production' 
+      ? 'https://green-planet-moc.onrender.com/api/auth/google/callback'
+      : 'http://localhost:10000/api/auth/google/callback';
+
+    console.log('Using redirect URI for token exchange:', redirectUri);
+
+    // Exchange code for tokens with explicit redirect URI
+    const { tokens } = await client.getToken({
+      code: code,
+      redirect_uri: redirectUri
+    });
     
-    // Get user info from Google
+    console.log('Successfully exchanged code for tokens');
+
+    // Verify ID token
     const ticket = await client.verifyIdToken({
       idToken: tokens.id_token,
       audience: process.env.GOOGLE_CLIENT_ID
     });
     
     const payload = ticket.getPayload();
+    console.log('Google payload received:', payload);
+
     const { sub: googleId, email, name, picture } = payload;
 
     // Find or create user
@@ -87,7 +103,6 @@ router.get('/google/callback', async (req, res) => {
     });
 
     if (!user) {
-      // Create new user
       user = new User({
         googleId,
         email,
@@ -96,24 +111,29 @@ router.get('/google/callback', async (req, res) => {
         authMethod: 'google'
       });
       await user.save();
+      console.log('Created new user:', user._id);
     } else if (!user.googleId) {
-      // Link Google account to existing user
       user.googleId = googleId;
       user.avatar = picture;
       await user.save();
+      console.log('Updated existing user with Google ID:', user._id);
     }
 
-    // Generate both access and refresh tokens
+    // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user);
     
-    // Redirect to frontend with both tokens
+    // Redirect to frontend
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    console.log('Redirecting to frontend with tokens');
     res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}&refreshToken=${refreshToken}&userId=${user._id}`);
     
   } catch (error) {
-    console.error('Google callback error:', error);
+    console.error('Google callback error details:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?error=Authentication failed`);
+    res.redirect(`${frontendUrl}/auth/callback?error=Authentication failed: ${error.message}`);
   }
 });
 
